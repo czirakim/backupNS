@@ -1,0 +1,71 @@
+---
+- hosts: localVPX
+  connection: local
+  vars:
+    day: '{{ansible_date_time.date}}'
+    time: '{{ansible_date_time.time}}'
+    ns_sys_backup: "/var/ns_sys_backup"
+    backup_location: "/home/ansible/ns_sys_backup"
+
+  tasks:
+
+    - name: Backup netscaler
+      delegate_to: localhost
+      tags: createbackup
+      uri:
+        url: "https://{{ansible_host}}/nitro/v1/config/systembackup?action=create"
+        method: POST
+        validate_certs: no
+        return_content: yes
+        headers:
+           X-NITRO-USER: "{{ns_user}}"
+           X-NITRO-PASS: "{{ns_pass}}"
+        body_format: json
+        body:
+          systembackup:
+            filename: "{{name + '-' + day + '-' + time}}"
+            level: full
+            comment: Ansible Generated Backup
+
+    - name: Fetch backup
+      delegate_to: localhost
+      tags: fetchbackup
+      uri:
+        url: "https://{{ansible_host}}/nitro/v1/config/systemfile?args=filename:{{name + '-' + day + '-' + time}}.tgz,filelocation:{{ns_sys_backup | replace('/','%2F')}}"
+        method: GET
+        status_code: 200
+        validate_certs: no
+        return_content: yes
+        headers:
+          X-NITRO-USER: "{{ns_user}}"
+          X-NITRO-PASS: "{{ns_pass}}"
+      register: result
+
+    - name: Save Netscaler system backup to backup directory
+      copy:
+        content='{{ result.json.systemfile[0].filecontent  }}'
+        dest="{{ backup_location }}/{{ name }}_{{ lookup('pipe', 'date +%Y%m%d') }}.tgz"
+
+    - name: decode filename
+      delegate_to: localhost
+      shell: cat  "{{ backup_location }}/{{ name }}_{{ lookup('pipe', 'date +%Y%m%d') }}.tgz" | base64 -d > '{{ backup_location }}/{{ name }}_{{ lookup('pipe', 'date +%Y_%m_%d_%H%M') }}.tgz'
+
+
+
+    - name: Delete backup from netscaler
+      delegate_to: localhost
+      tags: deletebackup
+      uri:
+        url: "https://{{ansible_host}}/nitro/v1/config/systembackup/{{name + '-' + day + '-' + time}}.tgz"
+        method: DELETE
+        validate_certs: no
+        return_content: yes
+        headers:
+           X-NITRO-USER: "{{ns_user}}"
+           X-NITRO-PASS: "{{ns_pass}}"
+
+    - name: Delete undecoded filename
+      delegate_to: localhost
+      file:
+        path: "{{ backup_location }}/{{ name }}_{{ lookup('pipe', 'date +%Y%m%d') }}.tgz"
+        state: absent
