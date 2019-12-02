@@ -7,7 +7,7 @@ The scope of this project is to write a script that creates and downloads a full
 <br> backup from a Citrix Netscaler (ADC).
 <br>Using this backup archive a restore of the whole appliance can be done.
 <br>The script also does some clean-up. It deletes the backup from the Netscaler
-<br>and the undecodded file from local directory.
+<br>and the undecoded file from local directory.
 <br> The backup archive will be located in the folder (backup_location) you define in the script.
 <br> For example :  backup_location: "/home/ansible/ns_sys_backup"
 
